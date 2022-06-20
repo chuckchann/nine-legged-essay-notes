@@ -1,18 +1,18 @@
-# 九股文笔记-Golang之channel
+# Golang之channel
 
-#### channel
+### channel
 
 channel是支撑Go语言高性能并发编程模型的重要结构，channel是一个用于同步和通信的有锁队列，使用互斥锁解决程序中可能存在的线程竞争问题。以下内容基于：
 
-```
+```shell
 go version go1.16.2 darwin/amd64
 ```
 
-#### channel的数据结构
+### channel的数据结构
 
 channel其是用runtime.hchan来表示的。
 
-```
+```go
 type hchan struct {
 	qcount   uint           // 缓冲区里有几个元素
 	dataqsiz uint           // 缓冲区最多有几个元素 即缓冲区大小
@@ -31,7 +31,7 @@ type hchan struct {
 
 recvq与sendq是waitq类型的数据，分别代表接受的g队列与发送的g队列，waitq是一个双端链表。
 
-```
+```go
 type waitq struct {
 	first *sudog
 	last  *sudog
@@ -48,11 +48,11 @@ buf是一个指向一个环形数组的指针，sendx与recvx分别代表在这�
 
 ---
 
-#### 创建一个channel
+### 创建一个channel
 
 创建channel最终使用的是runtime.makechan\(\)这个函数。
 
-```
+```go
 func makechan(t *chantype, size int) *hchan {
     ...
     
@@ -76,11 +76,11 @@ func makechan(t *chantype, size int) *hchan {
 
 ---
 
-#### 向channel发送数据
+### 向channel发送数据
 
 向channel发送数据最终调用的是runtime.chansend，其函数签名为：
 
-```
+```go
 func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
     ...
 }
@@ -94,7 +94,7 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 
 block为false即不阻塞的情况，如select里的channel操作：
 
-```
+```go
 func main() {
     ch := make(chan int)
     select {
@@ -107,7 +107,7 @@ func main() {
 
 block为true即阻塞的情况，如往无buffer的channel发送数据：
 
-```
+```go
 func main() {
     ch := make(chan int)
     ch <- 0
@@ -118,7 +118,7 @@ func main() {
 
 具体看看往一个channel里发送数据的流程。
 
-```
+```go
 func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 
         省略若干代码...
@@ -220,11 +220,11 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 
 ---
 
-#### 从channel接收数据
+### 从channel接收数据
 
 从channel接收数据最终调用的是runtime.chanrecv，其函数签名如下：
 
-```
+```go
 func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool){
     ...
 }
@@ -238,7 +238,7 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 
 block为false即不阻塞的情况，如select里的channel操作：
 
-```
+```go
 func main() {
     ch := make(chan int)
     select {
@@ -251,7 +251,7 @@ func main() {
 
 block为true即阻塞的情况，如从无buffer的channel接收数据：
 
-```
+```go
 func main() {
     ch := make(chan int)
     data := <-ch 
@@ -262,7 +262,7 @@ func main() {
 
 具体看看从一个channel里接收数据的流程
 
-```
+```go
 func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool) {
 
 	// 省略若干代码... 

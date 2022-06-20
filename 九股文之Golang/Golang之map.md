@@ -1,17 +1,17 @@
-# 九股文笔记-Golang之map
+# Golang之map
 
-#### 哈希表
+### 哈希表
 
 map即哈希表，也称为散列表，是根据关键码值\(key value\)而直接进行访问的数据结构。也就是说，它通过把关键码值映射（哈希函数）到表中一个位置来访问记录，以加快查找的速度。
 
-#### 哈希碰撞
+### 哈希碰撞
 
 哈希函数是整个哈希表的关键。所以为了更好的性能，我们希望在尽可能短的时间内，相同的key经过哈希函数的计算，可以得到相同的索引，不同的key经过哈希函数的计算，可以得到不同的索引，但在实际中往往事与愿违，不同的key小概率会计算出相同的索引，这就是哈希冲突（collision），几乎所有的哈希函数都存在这个问题。常见的解决哈希冲突的方法有：
 
 1. _开放寻址法_：开放寻址法是如果通过哈希函数计算出的key所对应的空间已经被占用了，就从数组尾部再找一个还没被占用的空间将数据存进去。
 2. _拉链法_：实现拉链法一般会使用数组加上链表，数组的每个索引位置装的是一个链表，当发生hash冲突时，将新的kv挂在这个链表的尾部。
 
-#### 版本
+### 版本
 
 **以下内容基于**：
 
@@ -19,11 +19,11 @@ map即哈希表，也称为散列表，是根据关键码值\(key value\)而直�
 go version go1.16.2 darwin/amd64
 ```
 
-#### map的数据结构
+### map的数据结构
 
 Golang里map由runtime.hmap实现。
 
-```
+```go
 
 type hmap struct {
 	count     int    // map的大小，指map中有多少个kv对，也就是len()的值，
@@ -43,7 +43,7 @@ type hmap struct {
 
 hamp里的桶是由runtime.bmap表示的
 
-```
+```go
 type bmap struct {
 	tophash [bucketCnt]uint8 ////一个长度为8的数组 其中每个index存储的是key的hash值的高8位 如果tophash[0] < minTopHash，则 tophash [0] 表示为迁移进度
 
@@ -64,7 +64,7 @@ type bmap struct {
 
 这里先介绍下槽的几种状态，后面的代码分析中会遇到
 
-```
+```go
 const (
 	//...
 
@@ -83,7 +83,7 @@ const (
 
 hmap.extra用来存放溢出桶的信息。
 
-```
+```go
 type mapextra struct {
 	overflow    *[]*bmap //当前溢出桶的地址
 	oldoverflow *[]*bmap //旧的溢出桶的地址
@@ -97,11 +97,11 @@ type mapextra struct {
 
 ![11b0527c3ced1d60234bdcd61dddfa96.png](image/11b0527c3ced1d60234bdcd61dddfa96.png)
 
-#### map的初始化
+### map的初始化
 
 构造一个map最终都是调用runtime.makemap
 
-```
+```go
 
 func makemap(t *maptype, hint int, h *hmap) *hmap {
 	//hint为元素个数 这里计算哈希占用的内存是否溢出或超出能分配的最大内存
@@ -141,25 +141,25 @@ func makemap(t *maptype, hint int, h *hmap) *hmap {
 
 ```
 
-#### map的访问
+### map的访问
 
 map的访问主要是runtime.mapaccess1与runtime.mapaccess2，两个函数分别对应map的获取的两种方式
 
 mapaccess1:
 
-```
+```go
 v := m[k] //mapaccess1 直接返回目标值
 ```
 
 mapaccess2:
 
-```
+```go
 v, ok := m[k] //mapaccess2 除了返回目标值外 还会返回勇于判断k是否存在的bool变量
 ```
 
 mapaccess1与mapaccess2整体流程基本相同，唯一不同点是mapaccess2在获取不到数据的时候会返回多一个false表示这个key不存在，这里就以mapaccess1为例来说明在map里如何根据key来获取value。
 
-```
+```go
 func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
 
 	//省略一些前置判断...
@@ -227,11 +227,11 @@ bucketloop:
 
 在上面计算key对应的桶的过程中，一般来说，根据map的hash函数计算出key对应的hash值后，需要用这个hash值对hmap.buckets的长度取模（因为哈希值很可能大于bucket数组的长度，所以需要取模来确保hash值能对落到应到buckets上）。不过这里并没有采用 hash值 % bucketsize 方法计算对应的bucket，而是使用 hasn值 & bucketsize\-1 的方法来**快速计算**对应的桶的位置（也许是因为位操作比取模操作快），**但是这种位操作代替取模的前提是，bucket数组长度必须是2的指数**，这里也就解释了为什么不直接用一个int变量来存储bucketsize，而是使用hmap.B，因为bucketsize都是 2 ^ B，**所以可以用位操作来代替取模操作。**
 
-#### map的写入
+### map的写入
 
 map的写入使用的是runtime.mapassign函数，该函数与runtime.mapaccess1比较类似。
 
-```
+```go
 func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
 	
 	//省略一些前置判断...
@@ -370,7 +370,7 @@ map扩容的条件有两个，分别对应两种扩容方式。
 
 当满足扩容条件时，就会调用runtime.hashGrow，但runtime.hashGrow只会构造新桶并且修改相关字段，**并不会真正把数据迁移到新桶上**。**只有当map进行插入跟删除操作，才会把数据从旧桶迁移到新桶，迁移的过程是runtime.growWork完成的**。
 
-```
+```go
 func hashGrow(t *maptype, h *hmap) {
 	
 	bigger := uint8(1)
@@ -422,7 +422,7 @@ func hashGrow(t *maptype, h *hmap) {
 
 **runtime.growWork**负责出处理桶迁移，而其中又调用**runtime.evacuate**来具体迁移某个桶，可以看到一次迁移过程最多搬移**两个桶**，而不是一次性将所有旧桶都迁移到新桶，这样做是为了**避免一次迁移太桶多会造成区间性能抖动**。
 
-```
+```go
 func growWork(t *maptype, h *hmap, bucket uintptr) {
 	// 当前操作key对应的桶（旧桶），搬迁到新桶数组
 	evacuate(t, h, bucket&h.oldbucketmask())
@@ -436,7 +436,7 @@ func growWork(t *maptype, h *hmap, bucket uintptr) {
 
 **runtime.evacuate**迁移流程如下。
 
-```
+```go
 func evacuate(t *maptype, h *hmap, oldbucket uintptr) {
 	//找到key对应的旧桶
 	b := (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))
@@ -559,11 +559,11 @@ func evacuate(t *maptype, h *hmap, oldbucket uintptr) {
 
 ![6c9038a0a055fe082a830d7d54cc3302.png](image/6c9038a0a055fe082a830d7d54cc3302.png)
 
-#### map的删除
+### map的删除
 
 从map中删除元素使用的是runtime.mapdelete函数簇中的一个，包括 runtime.mapdelete、mapdelete\_faststr、mapdelete\_fast32 和 mapdelete\_fast64，主体流程与key的插入类似，这里挑选runtime.mapdelete来分析一下。
 
-```
+```go
 func mapdelete(t *maptype, h *hmap, key unsafe.Pointer) {
 
 	//省略一些前置判断...
@@ -683,7 +683,7 @@ search:
 }
 ```
 
-#### map的遍历
+### map的遍历
 
 如果单纯地遍历map是一件比较简单的事，最外层遍历所有的bucket\(包括oldbuckets\)，中间遍历bucket里的槽\(包括溢出桶\)，即可获取map里的所有的kv对。但实际上map的遍历并不是有序的，Go团队在设计哈希表的遍历时就不想让使用者依赖固定的遍历顺序，所以引入了随机数保证遍历的随机性。
 
@@ -691,7 +691,7 @@ search:
 
 runtime.mapiterinit会初始化遍历开始的元素。其核心逻辑如下。
 
-```
+```go
 runtime.mapiterinit的核心逻辑如下。
 func mapiterinit(t *maptype, h *hmap, it *hiter) {
 
@@ -726,7 +726,7 @@ func mapiterinit(t *maptype, h *hmap, it *hiter) {
 
 runtime.mapiternext负责遍历元素。其中又分为选择桶与遍历桶内元素两个阶段。其核心逻辑如下：
 
-```
+```go
 func mapiternext(it *hiter) {
 	h := it.h
 	t := it.t

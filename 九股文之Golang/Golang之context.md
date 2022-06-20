@@ -1,6 +1,6 @@
-# 九股文笔记-Golang之context
+# Golang之context
 
-#### Context是什么
+### Context是什么
 
 Context是Golang中独特的数据结构，可以用来设置截至日期、同步信号、传递请求相关值，**总地来说就是在goroutine构成的树形结构中对信号进行同步以减少计算资源的浪费**。以下内容基于：
 
@@ -8,11 +8,11 @@ Context是Golang中独特的数据结构，可以用来设置截至日期、同�
 go version go1.16.2 darwin/amd64
 ```
 
-#### Context的数据结构
+### Context的数据结构
 
 Context是一个接口，来看下它的接口定义
 
-```
+```go
 type Context interface {
 
 	//Deadline方法是获取设置的截至时间，到了这个截至时间，
@@ -36,17 +36,17 @@ type Context interface {
 
 context包提供了6种创建Context的方法。每个方法都会返回一种类型的结构体，这些结构体都实现了Context接口。
 
-![.png](image/.png)
+<img src="image/Xnip2022-06-20_12-08-20.jpg" alt="Xnip2022-06-20_12-08-20.jpg" style="zoom:67%;" />
 
 ---
 
-#### Context的实现原理
+### Context的实现原理
 
 ##### emptyCtx
 
 emptyContext是可以从下面看到它其实是一个空实现，即不提供任何功能。
 
-```
+```go
 type emptyCtx int
 
 func (*emptyCtx) Deadline() (deadline time.Time, ok bool) {
@@ -72,7 +72,7 @@ context.Background\(\) 与 context.TODO\(\) 返回的数据结构都是一个emp
 
 context.WithValue\(\)返回valueCtx的context。valueCtx主要用户上下文中的值传递。
 
-```
+```go
 func WithValue(parent Context, key, val interface{}) Context {
 	if parent == nil {
 		panic("cannot create context from nil parent")
@@ -105,7 +105,7 @@ func (c *valueCtx) Value(key interface{}) interface{} {
 
 cancelCtx 是整个context实现中**最重要的部分**。重点分析下cancelCtx的实现及一些通用的方法。
 
-```
+```go
 type cancelCtx struct {
 	Context                        //父节点
 
@@ -119,7 +119,7 @@ type cancelCtx struct {
 
 cancelCtx本身不是用来传递值的，按理来说cancelCtx的Value方法的应该是直接依赖父ctx来实现，但cancelCtx却显式地实现了Value方法，其原因是需要先判断key是否为cancelCtxKey。这里这个cancelCtxKey是用来判断一个ctx是否为cancelCtx。
 
-```
+```go
 func (c *cancelCtx) Value(key interface{}) interface{} {
 	if key == &cancelCtxKey {
 		return c
@@ -130,7 +130,7 @@ func (c *cancelCtx) Value(key interface{}) interface{} {
 
 cancelCtx.Done以懒加载获取一个用于通知的channel，实现如下。
 
-```
+```go
 func (c *cancelCtx) Done() <-chan struct{} {
 	c.mu.Lock()  //加锁
 	if c.done == nil { 
@@ -144,7 +144,7 @@ func (c *cancelCtx) Done() <-chan struct{} {
 
 cancelCtx.Err返回取消的原因。
 
-```
+```go
 func (c *cancelCtx) Err() error {
     c.mu.Lock()
     err := c.err
@@ -155,7 +155,7 @@ func (c *cancelCtx) Err() error {
 
 **Done与Err方法获取结构体里的字段都是有锁机制保护的，所以context可以说是线程安全的**。上面讲了canceCtx的几种方法，下面来说说如何创建cancelCtx。通过context.WihtCancel方法可以创建一个带cancel方法的cancelCtx。context.WithCancel先初始化一个cancelCtx，**再使用context.propagateCancel来告知父ctx，自己的子ctx里出现了一个cancelCtx，需要在他们自己的children字段里加上当前的cancelCtx，然后返回当前cancelCtx及一个cancel函数，cancel函数可以让使用者随时取消当前的cancelCtx**。
 
-```
+```go
 func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
 	if parent == nil {
 		panic("cannot create context from nil parent")
@@ -168,7 +168,7 @@ func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
 
 先来看cancel函数cancelCtx.cancel，其作用是用来取消当前ctx及其子孙ctx。
 
-```
+```go
 func (c *cancelCtx) cancel(removeFromParent bool, err error) {
 	if err == nil {
 		panic("context: internal error: missing cancel error")
@@ -216,7 +216,7 @@ func removeChild(parent Context, child canceler) {
 
 context.parentCancelCtx 这个方法比较重要,很多地方都有用到，功能是找到父辈中非自定义的cancelCtx\(即只找从context包里出来的\)。
 
-```
+```go
 func parentCancelCtx(parent Context) (*cancelCtx, bool) {
 	done := parent.Done()
 	if done == closedchan || done == nil {  //说明父ctx已经被取消 不用找了
@@ -238,7 +238,7 @@ func parentCancelCtx(parent Context) (*cancelCtx, bool) {
 
 context.propagateCancel也是一个重要的方法，其作用是告知父辈ctx，自己的子ctx里出现了一个cancelCtx，需要在他们自己的children字段里加上当前的cancelCtx，以形成父子关系。
 
-```
+```go
 func propagateCancel(parent Context, child canceler) {
 	done := parent.Done()
 	if done == nil {      //父辈ctx不会触发cancel 直接返回 例如父ctx是context.BackGround()
@@ -283,7 +283,7 @@ func propagateCancel(parent Context, child canceler) {
 
 先看看timerCtx的结构定义及一些特有的方法。
 
-```
+```go
 type timerCtx struct {
 	cancelCtx
 	timer *time.Timer // Under cancelCtx.mu.
@@ -294,7 +294,7 @@ type timerCtx struct {
 
 可以看出，timerCtx中内嵌了一个cancelCtx，**可见timerCtx取消类相关的功能是依赖cancelCtx来实现的**。context.WithTimeout及context.WithDeadline返回一个timerCtx及取消函数。context.WithTimeout也是基于context.WithDeadline来实现的。
 
-```
+```go
 func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc) {
 	return WithDeadline(parent, time.Now().Add(timeout))
 }
@@ -330,7 +330,7 @@ func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
 
 timerCtx的取消函数，当取消函数被调用的时候，把定时器取消掉。
 
-```
+```go
 	c.cancelCtx.cancel(false, err)
 	if removeFromParent {
 		// Remove this timerCtx from its parent cancelCtx's children.
@@ -344,11 +344,11 @@ timerCtx的取消函数，当取消函数被调用的时候，把定时器取消
 	c.mu.Unlock()
 ```
 
-#### 总结
+### 总结
 
 各种类型的ctx并没有显式地实现接口的各个方法，而是只实现与自己相关的方法。比如，valueCtx只实现了Value方法（这也是它的核心功能），其他的与它本身功能无关的取消类的方法比如（Deadline方法）由它的父ctx实现，这样的设计使得每种类型的ctx只需要关注自己的功能，而无需实现与它功能无关的方法。假设valueCtx也显式地实现Done/Deadline，那么需要递归或者循坏去获取到它的父辈ctx中的cancelCtx或者timerCtx，代码可能如下所示：
 
-```
+```go
 func (c *valueCtx) Done() <-chan struct{} {
 	for cur := c; c != nil; c = c.Context {
 		if cancelc, ok := cur.Value(&cancelCtxKey).(*cancelCtx); ok {

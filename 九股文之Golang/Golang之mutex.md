@@ -1,12 +1,12 @@
-# 九股文笔记-Golang之mutex
+# Golang之mutex
 
-#### 互斥锁Mutex
+### 互斥锁Mutex
 
 在Golang中用于表示互斥锁的是sync.Lock，其作用是保护临界区，确保任意时间只有一个goroutine能拿到锁。
 
 ---
 
-#### 正常模式&饥饿模式
+### 正常模式&饥饿模式
 
 为了保证公平性，Golang在v1.9的互斥锁版本中引入了饥饿模式与正常模式。
 
@@ -19,9 +19,9 @@
 
 ---
 
-#### sync.Lock
+### sync.Lock
 
-```
+```go
 type Mutex struct {
 	state int32 //表示锁的状态，有锁定、饥饿、唤醒等状态
 	sema  uint32 //表示信号量 用于实现mutex阻塞队列的定位
@@ -48,9 +48,9 @@ state字段总共占用32个bit，其中用前三位表示三个状态，后29�
 
 ---
 
-#### Lock\(\)加锁过程
+### Lock\(\)加锁过程
 
-```
+```go
 func (m *Mutex) Lock() {
 	// Fast path: grab unlocked mutex.
 	if atomic.CompareAndSwapInt32(&m.state, 0, mutexLocked) {
@@ -71,7 +71,7 @@ func (m *Mutex) Lock() {
 3. 计算互斥锁的最新状态
 4. 更新互斥锁的状态并获取锁
 
-```
+```go
 func (m *Mutex) lockSlow() {
 	var waitStartTime int64
 	starving := false
@@ -102,7 +102,7 @@ func (m *Mutex) lockSlow() {
 * 当前 Goroutine 为了获取该锁进入自旋的次数小于四次。
 * 当前机器上至少存在一个正在运行的处理器 P 并且处理的运行队列为空
 
-```
+```go
         //如果没有进入自旋转状态
 		new := old
 		// Don't try to acquire starving mutex, new arriving goroutines must queue.
@@ -130,4 +130,6 @@ func (m *Mutex) lockSlow() {
 			new &^= mutexWoken
 		}
 ```
+
+​		TODO...
 

@@ -1,10 +1,10 @@
-# 九股文笔记-Golang之sync.Map
+# Golang之sync.Map
 
-#### map的并发操作
+### map的并发操作
 
 从前面文章的分析可以看到，原生的map如果并发读写的话，会抛出异常。
 
-```
+```go
 	if h.flags&hashWriting != 0 {
 		throw("concurrent map read and map write")
 	}
@@ -14,9 +14,9 @@
 
 ---
 
-#### sync.Map数据结构
+### sync.Map数据结构
 
-```
+```go
 type Map struct {
 
 	mu Mutex //互斥锁 保护dirty字段
@@ -31,7 +31,7 @@ type Map struct {
 
 其中sync.readOnly的数据结构
 
-```
+```go
 type readOnly struct {
 	m       map[interface{}]*entry
 	amended bool //如果dirty里存在m中没有的key 这个值为true
@@ -40,7 +40,7 @@ type readOnly struct {
 
 sync.entry用来存储指向value的指针
 
-```
+```go
 type entry struct {
 	p unsafe.Pointer // *interface{}
 }
@@ -58,7 +58,7 @@ entry.p有三种状态，分别是：
 
 ---
 
-#### sync.Map原理
+### sync.Map原理
 
 * 通过read与dirty两个字段，将读写操作分离，读的数据只存在只读字段read上，新写入的数据则放到dirty中。
 * 读取的时候会先读read，read中没有再查询dirty。
@@ -66,5 +66,7 @@ entry.p有三种状态，分别是：
 * misses字段表示read读取失败但是在dirty读到（read被穿透）的次数，当misses达到一定值，需要将dirty升级为read，已减少miss的次数。
 * 对于删除的数据通过标记来延迟删除。
 
-#### sync.Map操作
+### sync.Map操作
+
+TODO...
 
