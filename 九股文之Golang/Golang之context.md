@@ -350,7 +350,7 @@ timerCtx的取消函数，当取消函数被调用的时候，把定时器取消
 
 ```go
 func (c *valueCtx) Done() <-chan struct{} {
-	for cur := c; c != nil; c = c.Context {
+	for cur := c; cur != nil; cur = cur.Context {
 		if cancelc, ok := cur.Value(&cancelCtxKey).(*cancelCtx); ok {
 			return cancelc.done
 		}
