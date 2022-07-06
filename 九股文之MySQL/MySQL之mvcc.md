@@ -16,7 +16,7 @@ MVCC是如何实现的？
 
 InnoDB 里面每个事务有一个唯一的事务 ID，叫作 transaction id。它是在事务开始的时候向 InnoDB 的事务系统申请的，是按申请顺序严格递增的。而每行数据也都是有多个版本的。每次事务更新数据的时候，都会生成一个新的数据版本，并且把 transaction id 赋值给这个数据版本的事务 ID，记为 row trx_id。同时，旧的数据版本要保留，并且在新的数据版本中，能够有信息可以直接拿到它。也就是说，数据表中的一行记录，其实可能有多个版本 (row)，每个版本有自己的 row trx_id。每个版本之间可以用回滚指针相连接。
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-31-58-image.png)
+![](image/2022-04-08-15-31-58-image.png)
 
 对于使用 InnoDB 存储引擎的数据库表，它的聚簇索引记录中都包含下面两个隐藏列：
 
@@ -24,7 +24,7 @@ InnoDB 里面每个事务有一个唯一的事务 ID，叫作 transaction id。�
 
 - roll_pointer，每次对某条聚簇索引记录进行改动时，都会把旧版本的记录写入到 undo 日志中，然后**这个隐藏列是个指针，指向每一个旧版本记录**，于是就可以通过它找到修改前的记录。
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-33-00-image.png)
+![](image/2022-04-08-15-33-00-image.png)
 
 **<u><em>Read View</em></u>**
 
@@ -38,11 +38,11 @@ Read View 是事务开启时生成的一组视图数据，其中有四个重要�
 
 - creator_trx_id ：指的是**创建该 Read View 的事务的事务 id**。
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-35-17-image.png)
+![](image/2022-04-08-15-35-17-image.png)
 
 在创建  Read View 后，我们可以将记录中的 trx_id 划分这三种情况：
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-36-03-image.png)
+![](image/2022-04-08-15-36-03-image.png)
 
 一个事务去访问记录的时候，除了自己的更新记录总是可见之外，还有这几种情况：
 
@@ -66,7 +66,7 @@ Read View 是事务开启时生成的一组视图数据，其中有四个重要�
 
 假设事务 A （事务 id 为51）启动后，紧接着事务 B （事务 id 为52）也启动了，那这两个事务创建的 Read View 如下：
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-46-36-image.png)
+![](image/2022-04-08-15-46-36-image.png)
 
 事务 A 和 事务 B 的 Read View 具体内容如下：
 
@@ -90,7 +90,7 @@ Read View 是事务开启时生成的一组视图数据，其中有四个重要�
 
 接着，事务 A 通过 update 语句将这条记录修改了（还未提交事务），将小林的余额改成 200 万，这时 MySQL 会记录相应的 undo log，并以链表的方式串联起来，形成**版本链**，如下图：
 
-![](/Users/chuckchen/Desktop/image/2022-04-08-15-48-13-image.png)
+![](image/2022-04-08-15-48-13-image.png)
 
 你可以在上图的「记录的字段」看到，由于事务 A 修改了该记录，以前的记录就变成旧版本记录了，于是最新记录和旧版本记录通过链表的方式串起来，而且最新记录的 trx_id 是事务 A 的事务 id（trx_id = 51）。
 
@@ -122,7 +122,7 @@ Read View 是事务开启时生成的一组视图数据，其中有四个重要�
 
 那具体怎么做到的呢？我们重点看事务 B 每次读取数据时创建的  Read View。前两次 事务 B 读取数据时创建的  Read View 如下图：
 
-![](/Users/chuckchen/Desktop/image/640.png)
+![](image/640.png)
 
 我们来分析下为什么事务 B 第二次读数据时，读不到事务 A （还未提交事务）修改的数据？
 
@@ -132,7 +132,7 @@ Read View 是事务开启时生成的一组视图数据，其中有四个重要�
 
 在事务 A 提交后，**由于隔离级别是「读提交」，所以事务 B 在每次读数据的时候，会重新创建  Read View**，此时事务 B 第三次读取数据时创建的  Read View 如下：
 
-![](/Users/chuckchen/Desktop/image/641.png)
+![](image/641.png)
 
 事务 B 在找到小林这条记录时，**会发现这条记录的 trx_id 是 51，比事务 B 的 Read View 中的 min_trx_id 值（52）还小，这意味着修改这条记录的事务早就在创建  Read View 前提交过了，所以该版本的记录对事务 B 是可见的**。
 
