@@ -35,7 +35,7 @@ func (o *Once) Do(f func()) {
   // 是要保证函数返回后Do流程一定是执行完的，所以这违反了它设计的原则。
 
 	if atomic.LoadUint32(&o.done) == 0 { //如果 o.done==1 则为已执行 直接返回 
-		// 如果是0 说明还未执行 进入执行doSlow流程（这里可能有好几个goroutine进入这里去执行）
+		// 如果是0 说明还未执行 进入执行doSlow流程（注意！！！这里可能有好几个goroutine进入这里去执行）
 		o.doSlow(f)
 	}
 }
