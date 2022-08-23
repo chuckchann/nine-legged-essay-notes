@@ -30,7 +30,6 @@ func main() {
 执行结果如下：
 
 ```shell
-
 go run -gcflags "-m -l" main.go
 # command-line-arguments
 ./main.go:4:5: moved to heap: i

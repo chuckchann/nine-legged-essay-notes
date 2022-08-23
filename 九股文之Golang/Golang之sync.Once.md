@@ -34,7 +34,7 @@ func (o *Once) Do(f func()) {
   // 也执行cas操作，发现o.done已经为1了，直接返回，但这时Do流程可能还未执行完！sync.Once
   // 是要保证函数返回后Do流程一定是执行完的，所以这违反了它设计的原则。
 
-	if atomic.LoadUint32(&o.done) == 0 { //如果 o.done==1 则为已执行 直接返回 
+	if atomic.LoadUint32(&o.done) == 0 { //如果 o.done==1 则说明方法已执行 直接返回 
 		// 如果是0 说明还未执行 进入执行doSlow流程（注意！！！这里可能有好几个goroutine进入这里去执行）
 		o.doSlow(f)
 	}
@@ -50,11 +50,11 @@ func (o *Once) doSlow(f func()) {
 	defer o.m.Unlock()
   //明明前面已经获取了锁 这里为什么还要判断o.done == 0 ?
   //其实这里是类似单例模式里的double-check
-  //假设有 a b c 三个goroutine进入了doSlow，其中a先获取到锁，然后执行do流程
+  //这里假设有 a b c 三个goroutine进入了doSlow，其中a先获取到锁，然后执行do流程
   //这时b c 阻塞
   //等a执行完，释放锁，然后b拿到锁，此时b已经不需要再执行do流程了，所以这里仍然需要判断o.done == 0
   //c同理 
-  //这个流程就是类似单例模式里的double-check流程
+  //这个流程就是类似单例模式里的double-check的流程
 	if o.done == 0 {
 		defer atomic.StoreUint32(&o.done, 1)
 		f()
