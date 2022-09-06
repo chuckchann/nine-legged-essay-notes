@@ -6,16 +6,16 @@
 
 ### 场景分析
 
-> ##### 案例1: channel没有接收者
+##### 案例1: channel没有接收者
 
 下面这段程序展示了并发地向3个站点请求资源，接收者只接收最快返回的那个。
 
 ```go
 func goroutineLeak1() string {
 	responses := make(chan string) //正确姿势：responses := make(chan string, 3)
-	go func {responses := <- request("asia.gopl.io")}()
-	go func {responses := <- request("europe.gopl.io")}()
-	go func {responses := <- request("americas.gopl.io")}()
+	go func {responses <- request("asia.gopl.io")}()
+	go func {responses <- request("europe.gopl.io")}()
+	go func {responses <- request("americas.gopl.io")}()
 	return <- responses
 }
 ```
@@ -31,9 +31,9 @@ func goroutineLeak2() {
 	ch := make(chan int) //正确姿势1: ch := make(chan int, 10)
 	//10个生产者
 	for i := 0; i < 10; i++ {
-		go func() {
-			<-ch
-		}()
+		go func(i int) {
+			ch <- i
+		}(i)
 	}
 
 	//1个消费者 

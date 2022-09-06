@@ -60,6 +60,6 @@ extra表示此次查询的附加信息，下面列举几个比较常见的值：
 2. <u>Using Filesort</u>: 当查询中包含 ORDER BY 操作 ，而且**无法利用索引完成排序操作**的时候，MySQL Query Optimizer 不得不选择相应的排序算法来实现。数据较少时从内存排序，否则从磁盘排序。
 3. <u>Using Index</u>: 仅使用索引树中的信息从表中检索列信息，而不必进行其他查找以读取实际行，即**索引覆盖**。
 4. <u>Using Index Condition</u>: 表示先按条件过滤索引，过滤完索引后找到所有符合索引条件的数据行，随后用 WHERE 子句中的其他条件去过滤这些数据行，即**索引下推**。
-5. <u>Using MRR</u>: 使用了Multi-Range Read优化策略，将随机读改为顺序读。
+5. <u>Using MRR</u>: 使用了Multi-Range Read优化策略，将**随机读改为顺序读**。
 6. <u>Using Temporary</u>: MySQL需要创建一个临时表来保存结果,如果查询包含不同列的GROUP BY和 ORDER BY子句，通常会发生这种情况。
 7. <u>Using Where</u>: 如果我们不是读取表的所有数据，或者不是仅仅通过索引就可以获取所有需要的数据（意味着要**回表**）则会出现Using Where信息。
