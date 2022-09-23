@@ -28,8 +28,7 @@ type Context interface {
 	//Err返回Context被取消的原因
 	Err() error
 
-	//Value方法返回Context绑定的对应的key的值，这个是线程
-	//安全的
+	//Value方法返回Context绑定的对应的key的值，这个是线程安全的
 	Value(key interface{}) interface{}
 }
 ```
@@ -107,7 +106,7 @@ cancelCtx 是整个context实现中**最重要的部分**。重点分析下cance
 
 ```go
 type cancelCtx struct {
-	Context                        //父节点
+	Context                        //父ctx
 
 	mu       sync.Mutex            // 锁 修改下面的三个字段需要上锁
 	done     chan struct{}         // 动态创建的channel，将被第一个cancenl()关闭
@@ -214,7 +213,7 @@ func removeChild(parent Context, child canceler) {
 }
 ```
 
-context.parentCancelCtx 这个方法比较重要,很多地方都有用到，功能是找到父辈中非自定义的cancelCtx\(即只找从context包里出来的\)。
+context.parentCancelCtx 这个方法比较重要，很多地方都有用到，功能是找到父辈中非自定义的cancelCtx\(即只找从context包里出来的\)。
 
 ```go
 func parentCancelCtx(parent Context) (*cancelCtx, bool) {
@@ -230,7 +229,7 @@ func parentCancelCtx(parent Context) (*cancelCtx, bool) {
 	ok = p.done == done //如果是自定义ctx 也会返回false
 	p.mu.Unlock()
 	if !ok {
-		return nil, false
+		return nil, false //父级的cancelCtx已经结束 也没有必要再去处理他的children
 	}
 	return p, true
 }
@@ -252,11 +251,12 @@ func propagateCancel(parent Context, child canceler) {
 	default:
 	}
 
-	if p, ok := parentCancelCtx(parent); ok {  //找到他的父辈中找到cancelCtx
+  //找到他的父辈中找到cancelCtx (注意这个p与parent不一定是一个context，parent是直接的父ctx，而p是他祖先中离他最近的一个实现了canceler的ctx)
+  if p, ok := parentCancelCtx(parent); ok {  
 		p.mu.Lock()
 		if p.err != nil {
-			// parent has already been canceled
-			child.cancel(false, p.err)      //父ctx已经被canceled
+			//父ctx已经被canceled 那他自己也要直接被cancel
+			child.cancel(false, p.err)      
 		} else {
 			if p.children == nil {
 				p.children = make(map[canceler]struct{})
@@ -311,11 +311,12 @@ func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
 		cancelCtx: newCancelCtx(parent),
 		deadline:  d,
 	}
+  //将自己放到第一个父辈实现了canceler的ctx 的 children里
 	propagateCancel(parent, c)
 	dur := time.Until(d)
-	if dur <= 0 {
+	if dur <= 0 { //当场超时 
 		c.cancel(true, DeadlineExceeded)               //当前时间已经过了deadline 
-		return c, func() { c.cancel(false, Canceled) } //虽然时间已经过了，但还是有可能被父ctx取消掉 所以不用从父ctx的children里摘除
+		return c, func() { c.cancel(false, Canceled) } //虽然他本身的超时时间已经过了，但还是有可能被父ctx取消掉 所以不用从父ctx的children里摘除
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -331,6 +332,7 @@ func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
 timerCtx的取消函数，当取消函数被调用的时候，把定时器取消掉。
 
 ```go
+func (c *timerCtx) cancel(removeFromParent bool, err error) {	
 	c.cancelCtx.cancel(false, err)
 	if removeFromParent {
 		// Remove this timerCtx from its parent cancelCtx's children.
@@ -342,6 +344,7 @@ timerCtx的取消函数，当取消函数被调用的时候，把定时器取消
 		c.timer = nil
 	}
 	c.mu.Unlock()
+}
 ```
 
 ### 总结

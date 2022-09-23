@@ -157,7 +157,7 @@ mapaccess2:
 v, ok := m[k] //mapaccess2 除了返回目标值外 还会返回勇于判断k是否存在的bool变量
 ```
 
-mapaccess1与mapaccess2整体流程基本相同，唯一不同点是mapaccess2在获取不到数据的时候会返回多一个false表示这个key不存在，这里就以mapaccess1为例来说明在map里如何根据key来获取value。
+mapaccess1与mapaccess2整体流程基本相同，唯一不同点是mapaccess2在获取不到数据的时候会返回多一个ok值表示这个key是否存在，这里就以mapaccess1为例来说明在map里如何根据key来获取value。
 
 ```go
 func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
@@ -179,12 +179,12 @@ func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
 	//是否正在扩容阶段
 	if c := h.oldbuckets; c != nil {
 		if !h.sameSizeGrow() {
-			// There used to be half as many buckets; mask down one more power of two.
+			//翻倍扩容的话 buckets数组的长度是原来的两倍
 			m >>= 1
 		}
 		oldb := (*bmap)(add(c, (hash&m)*uintptr(t.bucketsize)))
 		if !evacuated(oldb) {
-           //若正在扩容，则到老的 buckets 中查找（因为 buckets 中可能还没有值，搬迁未完成）
+      //若正在扩容，则到老的 bucket 中查找（因为当前桶迁移还未完成，数据仍然在旧的buckt中）
 			b = oldb
 		}
 	}
@@ -192,7 +192,7 @@ func mapaccess1(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
 	//获取hash值的高8位
 	top := tophash(hash)
 bucketloop:
-	for ; b != nil; b = b.overflow(t) {  //先在正常桶里找 找不到就在溢出桶里找
+	for ; b != nil; b = b.overflow(t) {  //先在正常桶里找 找不到就在继续在溢出桶里找
 		//根据计算出来的哈希值的高8位 依次与桶里已经存储的tophash的进行比较（快速试错，不会一开始就直接拿key来进行对比）
 		for i := uintptr(0); i < bucketCnt; i++ {
 			if b.tophash[i] != top {
@@ -225,7 +225,7 @@ bucketloop:
 }
 ```
 
-在上面计算key对应的桶的过程中，一般来说，根据map的hash函数计算出key对应的hash值后，需要用这个hash值对hmap.buckets的长度取模（因为哈希值很可能大于bucket数组的长度，所以需要取模来确保hash值能对落到应到buckets上）。不过这里并没有采用 hash值 % bucketsize 方法计算对应的bucket，而是使用 hasn值 & bucketsize\-1 的方法来**快速计算**对应的桶的位置（也许是因为位操作比取模操作快），**但是这种位操作代替取模的前提是，bucket数组长度必须是2的指数**，这里也就解释了为什么不直接用一个int变量来存储bucketsize，而是使用hmap.B，因为bucketsize都是 2 ^ B，**所以可以用位操作来代替取模操作。**
+在上面计算key对应的桶的过程中，一般来说，根据map的hash函数计算出key对应的hash值后，需要用这个hash值对hmap.buckets的长度取模（因为哈希值很可能大于bucket数组的长度，所以需要取模来确保hash值能对落到应到buckets上）。不过这里并没有采用 hash值 % buckets_size 方法计算对应的bucket，而是使用 hasn值 & bucketsize\-1 的方法来**快速计算**对应的桶的位置（也许是因为位操作比取模操作快），**但是这种位操作代替取模的前提是，bucket数组长度必须是2的指数**，这里也就解释了为什么不直接用一个int变量来存储bucketsize，而是使用hmap.B，因为bucketsize都是 2 ^ B，**所以可以用位操作来代替取模操作。**
 
 ### map的写入
 
@@ -253,7 +253,7 @@ func mapassign(t *maptype, h *hmap, key unsafe.Pointer) unsafe.Pointer {
 	}
 
 again:
-    
+
 	bucket := hash & bucketMask(h.B)
     
 	//如果当前正在扩容阶段 那么先将扩容完成
@@ -272,14 +272,15 @@ bucketloop:
 	for {
 		for i := uintptr(0); i < bucketCnt; i++ { //遍历桶里的8个槽
 			if b.tophash[i] != top {
-				//若遍历到的槽的tophash为空, 则先记录下该位置  后面可能直接用这个位置来放置kv键值对
+				//若遍历到的槽的tophash为空
 				if isEmpty(b.tophash[i]) && inserti == nil { 
+          //则先记录下该位置  如果这个key还没有在这个map中 后面可以直接用这个位置来放置kv键值对（相当于新增kv）
 					inserti = &b.tophash[i]
 					insertk = add(unsafe.Pointer(b), dataOffset+i*uintptr(t.keysize))
 					elem = add(unsafe.Pointer(b), dataOffset+bucketCnt*uintptr(t.keysize)+i*uintptr(t.elemsize))
 				}
 				
-               //该槽后面都没有kv了 没有必要找了
+        //该槽后面都没有kv了 没有必要找在这个桶里找了
 				if b.tophash[i] == emptyRest {
 					break bucketloop
 				}
@@ -368,7 +369,7 @@ map扩容的条件有两个，分别对应两种扩容方式。
 1. **如果装载因子\>6.5** map的扩容策略为将hmap.B加一, 即将整个哈希桶数目扩充为原来的两倍大小, 这种策略属于**增量扩容**。
 2. **如果是溢出桶过多**，也会触发扩容。为什么太多溢出桶太，装载因子并没有超过阈值，也会需要扩容？考虑这么一个case, 向 map 中插入大量的元素, 哈希桶将逐渐被填满, 这个过程中也可能创建了一些溢出桶, 但此时装载因子并没有超过设定的阈值, 然后对这些 map 做删除操作, 删除元素之后, map 中的元素数目变少, 使得装载因子降低, 而后又重复上述的过程, 最终使得整体的装载因子不大, 但整个 map 中存在了大量的溢出桶, 因此当溢出桶数目过多时, 即便没有达到装载因子 6.5 的阈值也会触发扩容。这种扩容属于**等量扩容** 。
 
-当满足扩容条件时，就会调用runtime.hashGrow，但runtime.hashGrow只会构造新桶并且修改相关字段，**并不会真正把数据迁移到新桶上**。**只有当map进行插入跟删除操作，才会把数据从旧桶迁移到新桶，迁移的过程是runtime.growWork完成的**。
+当满足扩容条件时，就会调用runtime.hashGrow，但runtime.hashGrow只会构造新桶并且修改相关字段，**并不会真正把数据迁移到新桶上**。**只有当map进行插入或者删除操作，才会把数据从旧桶迁移到新桶，迁移的过程是runtime.growWork完成的**。
 
 ```go
 func hashGrow(t *maptype, h *hmap) {
@@ -428,6 +429,7 @@ func growWork(t *maptype, h *hmap, bucket uintptr) {
 	evacuate(t, h, bucket&h.oldbucketmask())
 
 	// evacuate one more oldbucket to make progress on growing
+  // 另外再搬迁一个桶
 	if h.growing() {
 		evacuate(t, h, h.nevacuate)
 	}
@@ -440,7 +442,7 @@ func growWork(t *maptype, h *hmap, bucket uintptr) {
 func evacuate(t *maptype, h *hmap, oldbucket uintptr) {
 	//找到key对应的旧桶
 	b := (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))
-	// newbit即为老桶的个数
+	// newbit即为旧桶的个数
 	newbit := h.noldbuckets()
 
 	if !evacuated(b) {
@@ -469,7 +471,7 @@ func evacuate(t *maptype, h *hmap, oldbucket uintptr) {
 			for i := 0; i < bucketCnt; i, k, e = i+1, add(k, uintptr(t.keysize)), add(e, uintptr(t.elemsize)) { //遍历老桶内的槽
 				top := b.tophash[i]
 				if isEmpty(top) {
-					b.tophash[i] = evacuatedEmpty //槽位置为空，标记为槽已迁移
+					b.tophash[i] = evacuatedEmpty //槽位置为空，标记为槽已迁移，表示这个桶已经迁移完成了
 					continue
 				}
 				if top < minTopHash {
@@ -639,7 +641,7 @@ search:
 			}
 
 			//到这里时需要标记当前槽为emptyRest 即该槽后面的槽都没有key了，并且该槽所在的桶后面的溢出桶也没有数据了
-			//并且一直往前查找可以标记为emptyRest的槽
+			//并且一直从后往前查找可以标记为emptyRest的槽
 			for {
 				b.tophash[i] = emptyRest
 
@@ -685,7 +687,7 @@ search:
 
 ### map的遍历
 
-如果单纯地遍历map是一件比较简单的事，最外层遍历所有的bucket\(包括oldbuckets\)，中间遍历bucket里的槽\(包括溢出桶\)，即可获取map里的所有的kv对。但实际上map的遍历并不是有序的，Go团队在设计哈希表的遍历时就不想让使用者依赖固定的遍历顺序，所以引入了随机数保证遍历的随机性。
+如果单纯地遍历map是一件比较简单的事，最外层遍历所有的bucket\(包括oldbuckets\)，中间遍历bucket里的槽\(包括溢出桶\)，即可获取map里的所有的kv对。但实际上map的遍历并不是有序的，Go团队在设计哈希表的遍历时就不想让使用者依赖固定的遍历顺序，所以**引入了随机数保证遍历的随机性**。
 
 在遍历map时，编译器会使用 runtime.mapiterinit 和 runtime.mapiternext 两个运行时函数重写原始的 for\-range 循环。
 
@@ -743,7 +745,7 @@ next:
 			return
 		}
 
-		//如何桶为空 找需要遍历的新桶
+		//如果桶为空 找需要遍历的新桶
 		if h.growing() && it.B == h.B {
 			oldbucket := bucket & it.h.oldbucketmask()
 			b = (*bmap)(add(h.oldbuckets, oldbucket*uintptr(t.bucketsize)))

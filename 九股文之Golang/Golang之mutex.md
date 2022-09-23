@@ -85,7 +85,7 @@ func (m *Mutex) lockSlow() {
 				atomic.CompareAndSwapInt32(&m.state, old, old|mutexWoken) {
 				awoke = true
 			}
-            //runtime_doSpin()自旋函数，会执行30次PAUSE指令，该指令只会占用CPU并消耗CPU时间
+      //runtime_doSpin()自旋函数，会执行30次PAUSE指令，该指令只会占用CPU并消耗CPU时间
 			runtime_doSpin()
 			iter++
 			old = m.state

@@ -14,8 +14,8 @@ channel其是用runtime.hchan来表示的。
 
 ```go
 type hchan struct {
-	qcount   uint           // 缓冲区里有几个元素
-	dataqsiz uint           // 缓冲区最多有几个元素 即缓冲区大小
+	qcount   uint           // 缓冲区buffer里有几个元素
+	dataqsiz uint           // 缓冲区buffer最多有几个元素 即缓冲区大小
 	buf      unsafe.Pointer // 指向底层循环数组的指针
 	elemsize uint16         // 元素大小
 	closed   uint32        // 是否关闭
@@ -54,7 +54,7 @@ buf是一个指向一个环形数组的指针，sendx与recvx分别代表在这�
 
 ```go
 func makechan(t *chantype, size int) *hchan {
-    ...
+  ...
     
 	var c *hchan
 	switch {
@@ -116,45 +116,46 @@ func main() {
 
 ```
 
-具体看看往一个channel里发送数据的流程。
+具体看看往一个channel里发送数据的流程（只展示核心流程）。
 
 ```go
 func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 
-        省略若干代码...
+  //省略若干代码...
         
-        //非阻塞 且 channel未关闭 且 channel已满
+  //非阻塞 且 channel未关闭 且 channel已满
 	if !block && c.closed == 0 && full(c) {
 		return false
 	}
 
-        //操作前先上锁
+  //操作前先上锁
 	lock(&c.lock)
         
-        //往已关闭的channel里发送数据会panic
+  //往已关闭的channel里发送数据会panic
 	if c.closed != 0 {
 		unlock(&c.lock)
 		panic(plainError("send on closed channel"))
 	}
 
-         //如果能从接收者的G队列的队头取出一个G，说明已经有接收者ready，也说明了：
-            //1.带缓冲的channle的buffer为空，因为如果buffer不为空的话接收者可以直接从buffer里取到数据，不会再将接收者放在接收者队列里
-            //2.channel不带缓冲
+  //如果能从接收者的G队列的队头取出一个G，说明已经有接收者ready，也说明了：
+  //1.带缓冲的channle的buffer为空，因为如果buffer不为空的话接收者可以直接从buffer里取到数据，不会再将接收者放在接收者队列里
+  //2.channel不带缓冲
 	if sg := c.recvq.dequeue(); sg != nil {
-                //针对上面1.2两种情况 都可以将数据传递给这个接收者 并且唤醒等待者G 
+    //针对上面1.2两种情况 都可以将数据传递给这个接收者 并且唤醒等待者G 
 		send(c, sg, ep, func() { unlock(&c.lock) }, 3)
 		return true
 	}
     
-        //缓冲channel的buffer未满
+  //qcount < dataqsiz 表示这是一个带缓冲的channel（如果是无缓冲的话这两个字段都为0）
+  //缓冲channel的buffer未满
 	if c.qcount < c.dataqsiz {
-                //将数据放到缓冲buffer中即可返回
+    //将数据放到缓冲buffer中即可返回
 		qp := chanbuf(c, c.sendx)
 		if raceenabled {
 			racenotify(c, c.sendx, nil)
 		}
 		typedmemmove(c.elemtype, qp, ep)
-		c.sendx++ //发送索引位置更新
+		c.sendx++ //更新发送索引位置
 		if c.sendx == c.dataqsiz {
 			c.sendx = 0 //因为是环形的所以重新回到head
 		}
@@ -168,11 +169,11 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 		return false
 	}
 
-        //走到这里说明往通道里发送的数据没有把法被对端接收，即
-        //1.往无缓冲的channel发送数据而接收者还没ready
-        //2.往有缓冲的channel发送数据但buffer已满
+  //走到这里说明往通道里发送的数据没有把法被对端接收，即：
+  //1.往无缓冲的channel发送数据而接收者还没ready
+  //2.往有缓冲的channel发送数据但buffer已满
         
-        //获取当前G
+  //获取当前G
 	gp := getg()
 	mysg := acquireSudog()
 	mysg.releasetime = 0
@@ -190,12 +191,12 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 	c.sendq.enqueue(mysg) //将当前的G入队到发送等待队列sendq
 	atomic.Store8(&gp.parkingOnChan, 1)
         
-        //gopar将当前的G挂起 达到阻塞当前G的效果
+  //gopar将当前的G挂起 达到阻塞当前G的效果
 	gopark(chanparkcommit, unsafe.Pointer(&c.lock), waitReasonChanSend, traceEvGoBlockSend, 2)
 
 	KeepAlive(ep)
 
-	// 数据被接收者接收 当前G被唤醒 后面做一系列收尾工作
+	//数据被接收者接收 当前发送者G被唤醒 后面做一系列收尾工作
 	if mysg != gp.waiting {
 		throw("G waiting list is corrupted")
 	}
@@ -209,6 +210,7 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 	mysg.c = nil
 	releaseSudog(mysg)
 	if closed {
+    //如果不是因为接受者ready而是因为channel被close释放当前的G，会导致panic
 		if c.closed == 0 {
 			throw("chansend: spurious wakeup")
 		}
@@ -230,7 +232,7 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 }
 ```
 
-同样低，block参数表示在channel操作无法完成时是否需要阻塞。从channel接收数据操作不成功的情景：
+同样地，block参数表示在channel操作无法完成时是否需要阻塞。从channel接收数据操作不成功的情景：
 
 1. 从无缓冲的channel里接收数据而发送者还没ready
 2. 从有缓冲但buffer为空的channel里接受数据
@@ -267,21 +269,23 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 
 	// 省略若干代码... 
 
-        // 从一个nil channel 里接收数据
+  // 从一个nil channel 里接收数据
 	if c == nil {
 		if !block {
 			return //非阻塞  直接返回
 		}
-                //阻塞 当前G会永久阻塞
+    
+    //阻塞 当前G会永久阻塞
 		gopark(nil, nil, waitReasonChanReceiveNilChan, traceEvGoStop, 2)
 		throw("unreachable")
 	}
         
-        // 省略若干代码... 
+  // 省略若干代码... 
 
+  //加锁
 	lock(&c.lock)
 
-    // 如果通道被关闭 且 buffer里没有元素 这里可以返回了
+  // 如果通道被关闭 且 buffer里没有元素 这里直接返回了（返回类型零值）
 	if c.closed != 0 && c.qcount == 0 {
 		if raceenabled {
 			raceacquire(c.raceaddr())
@@ -293,29 +297,29 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 		return true, false
 	}
 
-    //如果能从发送者G队列取出一个G，说明当前有发送者ready，也说明了：
-    //1.带缓冲的channle的buffer已满，因为如果buffer未满的话接收者可以直接往buffer里发送数据，不会再将发送者放到发送者队列里，也就不会有ready的发送者。
-    //2.channel不带缓冲
+  //如果能从发送者G队列取出一个G，说明当前有发送者ready，也说明了：
+  //1.带缓冲的channle的buffer已满，因为如果buffer未满的话接收者可以直接往buffer里发送数据，不会再将发送者放到发送者队列里，也就不会有ready的发送者。
+  //2.channel不带缓冲
 	if sg := c.sendq.dequeue(); sg != nil {
-                 //1.如果是带缓冲的channel 且buffer已满，除了需要从buffer里去读数据拷贝给接收变量ep外，还需要将发送者G的数据放入buffer，调整发送位置索引， 并且唤醒这个发送者G，以保证FIFO  
-                //2.如果是没有缓冲的channel的情况就直接将数据拷贝给接收变量ep
+    //1.如果是带缓冲的channel 且buffer已满，除了需要从buffer里去读数据拷贝给接收变量ep外，还需要将发送者G的数据放入buffer，调整发送位置索引， 并且唤醒这个发送者G，以保证FIFO  
+    //2.如果是没有缓冲的channel的情况就直接将数据拷贝给接收变量ep
 		recv(c, sg, ep, func() { unlock(&c.lock) }, 3)
 		return true, true
 	}
 
-        //如果是带缓冲的channel 且buffer里任然有数据了 那么直接从buffer里拿数据即可
+  //如果是带缓冲的channel 且buffer里任然有数据了 那么直接从buffer里拿数据即可
 	if c.qcount > 0 {
-                //qp 即从hcha.buf里获取channel buffer里面的数据
+    //qp 即从hcha.buf里获取channel buffer里面的数据
 		qp := chanbuf(c, c.recvx)
 		if raceenabled {
 			racenotify(c, c.recvx, nil)
 		}
-                //将qp赋值接收者变量ep
+    //将qp赋值接收者变量ep
 		if ep != nil {
 			typedmemmove(c.elemtype, ep, qp)
 		}
 		typedmemclr(c.elemtype, qp)
-		c.recvx++ //接收索引位置更新
+		c.recvx++ //更新接收索引位置
 		if c.recvx == c.dataqsiz {
 			c.recvx = 0 //接收队列是环形数组 需重新置位为0
 		}
@@ -324,11 +328,11 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 		return true, true
 	}
     
-    //到这说明接收者当前没办法接收数据了 即
-    //1.不带缓冲channel & 没有发送者发送数据
-    //2.不带缓冲channel & buffer里没有数据
+  //到这说明接收者当前没办法接收数据了 即
+  //1.不带缓冲channel & 没有发送者发送数据
+  //2.不带缓冲channel & buffer里没有数据
     
-    //不阻塞的话就返回了
+  //不阻塞的话就返回了
 	if !block {
 		unlock(&c.lock)
 		return false, false
@@ -351,14 +355,14 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 	mysg.isSelect = false
 	mysg.c = c
 	gp.param = nil
-	c.recvq.enqueue(mysg) //将当前G入队
+	c.recvq.enqueue(mysg) //将当前G放入接收者的等待队列里
 
 	atomic.Store8(&gp.parkingOnChan, 1)
     
-    // 使用gopark阻塞当前G
+  //使用gopark阻塞当前G
 	gopark(chanparkcommit, unsafe.Pointer(&c.lock), waitReasonChanReceive, traceEvGoBlockRecv, 2)
 
-	//当前G被唤醒
+	//有发送者发送数据了 当前G被唤醒
 	if mysg != gp.waiting {
 		throw("G waiting list is corrupted")
 	}
@@ -374,5 +378,87 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 	return true, success
 }
 
+```
+
+------
+
+### 关闭channel
+
+关闭channel最终调用的是runtime.closechan，其函数签名为：
+
+```go
+func closechan(c *hchan) {
+  //关闭一个nil的channel会panic
+	if c == nil {
+		panic(plainError("close of nil channel"))
+	}
+
+  //加锁
+	lock(&c.lock)
+  
+  //关闭一个已关闭的channel会panic
+	if c.closed != 0 {
+		unlock(&c.lock)
+		panic(plainError("close of closed channel"))
+	}
+
+
+	//将closed标志位设为1
+	c.closed = 1
+
+	var glist gList
+
+	//收集所有等待者队列 将其放到glist队列里并释放
+	for {
+		sg := c.recvq.dequeue()
+		if sg == nil {
+			break
+		}
+		if sg.elem != nil {
+			typedmemclr(c.elemtype, sg.elem)
+			sg.elem = nil
+		}
+		if sg.releasetime != 0 {
+			sg.releasetime = cputicks()
+		}
+		gp := sg.g
+		gp.param = unsafe.Pointer(sg)
+		sg.success = false
+		if raceenabled {
+			raceacquireg(gp, c.raceaddr())
+		}
+		glist.push(gp)
+	}
+
+	//收集所有发送者队列 将其放到glist队列里并释放
+  //这里有个坑点：发送者等待队列里面的G唤醒后会导致这个G产生panic，详情可以看前面chansend函数的流程
+  //所以close一个chnnel之前要确保所有发送的的数据都被接收者接收了
+	for {
+		sg := c.sendq.dequeue()
+		if sg == nil {
+			break
+		}
+		sg.elem = nil
+		if sg.releasetime != 0 {
+			sg.releasetime = cputicks()
+		}
+		gp := sg.g
+		gp.param = unsafe.Pointer(sg)
+		sg.success = false
+		if raceenabled {
+			raceacquireg(gp, c.raceaddr())
+		}
+		glist.push(gp)
+	}
+	unlock(&c.lock)
+
+	//释放所有的等待者
+  //经过前面的分析可知，glist里要么全是发送者等待队列，要么全是接收者等待队列
+	for !glist.empty() {
+		gp := glist.pop()
+		gp.schedlink = 0
+		goready(gp, 3)
+	}
+}
 ```
 

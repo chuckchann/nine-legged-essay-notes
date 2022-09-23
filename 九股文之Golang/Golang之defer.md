@@ -52,7 +52,7 @@ type _defer struct {
 
 当goroutine获取到一个defer，就会创建一个runtime.\_defer结构体，然后将runtime.\_defer追加到当前goroutine的defer链表的最前面。
 
-![Xnip2022-06-20_12-13-14.jpg](image/Xnip2022-06-20_12-13-14.jpg)
+<img src="image/Xnip2022-06-20_12-13-14.jpg" alt="Xnip2022-06-20_12-13-14.jpg" style="zoom:50%;" />
 
 defer 关键字的插入顺序是从后向前的，而 defer 关键字执行是从前向后的，这也是为什么后调用的 defer 会优先执行。
 
@@ -62,14 +62,14 @@ defer函数创建新的延迟调用时就会立刻拷贝函数的参数，函数
 
 ```go
 //无效 无法计算函数执行时间
-func foo()  {
+func foo1()  {
 	startedAt := time.Now()
 	defer fmt.Println(time.Since(startedAt))
 	time.Sleep(time.Second)
 }
 
 //有效 可以计算函数执行时间
-func foo1()  {
+func foo2()  {
 	startedAt := time.Now()
 	defer func() {
 		fmt.Println(time.Since(startedAt))

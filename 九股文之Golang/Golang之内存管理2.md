@@ -40,7 +40,7 @@ Golang将内存管理的对象根据其大小分为三种类型：Tiny对象、�
 
 ### *Tiny对象内存的分配*
 
-Golang内存管理为什么需要一个Tiny这样的16B空间，原因是因为如果协程逻辑层申请的内存空间小于等于8B，那么根据正常的Size Class匹配会匹配到Size Class = 1（对应Span Class = 2或3），所以像 int32、 byte、 bool 以及小字符串等经常使用的Tiny微小对象，也都会使用从Size Class = 1申请的这8B的空间。但是类似bool或者1个字节的byte，也都会各自独享这8B的空间，进而导致有一定的内存空间浪费。
+Golang内存管理为什么需要一个Tiny这样的16B空间? 原因是因为如果协程逻辑层申请的内存空间小于等于8B，那么根据正常的Size Class匹配会匹配到Size Class = 1（对应Span Class = 2或3），所以像 int32、 byte、 bool 以及小字符串等经常使用的Tiny微小对象，也都会使用从Size Class = 1申请的这8B的空间。但是类似bool或者1个字节的byte，也都会各自独享这8B的空间，进而导致有一定的内存空间浪费。
 
 <img src="image/image (5).png" alt="image (5)" style="zoom:33%;" />
 
@@ -56,7 +56,7 @@ Golang内存管理为什么需要一个Tiny这样的16B空间，原因是因为�
 
 ### *大对象内存的分配*
 
-小对象是在MCache中分配的，**而大对象是直接从MHeap中分配**。对于不满足MCache分配范围的对象，均是按照大对象分配流程处理。大对象分配流程是协程逻辑层直接向MHeap申请对象所需要的适当Pages，从而绕过从MCaceh到MCentral的繁琐申请内存流程，大对象的内存分配流程相对比较简单，具体的流程如图所示。
+小对象是在MCache中分配的，**而大对象是直接从MHeap中分配**。对于不满足MCache分配范围的对象，均是按照大对象分配流程处理。大对象分配流程是协程逻辑层直接向MHeap申请对象所需要的适当Pages，**从而绕过从MCaceh到MCentral的繁琐申请内存流程**，大对象的内存分配流程相对比较简单，具体的流程如图所示。
 
 <img src="image/image (9).png" alt="image (9)" style="zoom:50%;" />
 

@@ -2,7 +2,7 @@
 
 ## 简介
 
-本文旨在讲解slice的数据结果及扩容策略，以下内容基于：
+本文旨在讲解slice的数据结构及扩容策略，以下内容基于：
 
 ```shell
 go version go1.16.2 darwin/amd64
