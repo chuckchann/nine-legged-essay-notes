@@ -122,7 +122,7 @@ type Handler interface {
 }
 ```
 
-也就是说，Engin肯定是实现了http.Handler接口，那么Engin肯定有ServeHTTP方法。
+也就是说，Engin肯定是实现了http.Handler接口，那么Engin肯定有ServeHTTP这个方法，当一个http请求过来后就会被engin.ServeHTTP处理。
 
 ```go
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -150,6 +150,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 	rPath := c.Request.URL.Path
 	rPath = cleanPath(rPath)
 
+  //每个http method 都有一个radix树
 	t := engine.trees
 	for i, tl := 0, len(t); i < tl; i++ {
 		if t[i].method != httpMethod {
