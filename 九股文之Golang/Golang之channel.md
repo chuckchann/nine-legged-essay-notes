@@ -462,3 +462,182 @@ func closechan(c *hchan) {
 }
 ```
 
+------
+
+### 如何优雅地关闭channel
+
+关于 channel 的使用，有几点不方便的地方：
+
+1. 在不改变 channel 自身状态的情况下，无法获知一个 channel 是否关闭
+2. 关闭一个 closed channel 会导致 panic。所以，如果关闭 channel 的一方在不知道 channel 是否处于关闭状态时就去贸然关闭 channel 是很危险的事情。
+3. 向一个 closed channel 发送数据会导致 panic。所以，如果向 channel 发送数据的一方不知道 channel 是否处于关闭状态时就去贸然向 channel 发送数据是很危险的事情。
+
+有一条广泛流传的关闭 channel 的原则：
+
+> don’t close a channel from the receiver side and don’t close a channel if the channel has multiple concurrent senders.
+
+不要从一个 receiver 侧关闭 channel，也不要在有多个 sender 时，关闭 channel。比较好理解，向 channel 发送元素的就是 sender，因此 sender 可以决定何时不发送数据，并且关闭 channel。但是如果有多个 sender，某个 sender 同样没法确定其他 sender 的情况，这时也不能贸然关闭 channel。
+
+有两个不那么优雅地关闭 channel 的方法：
+
+1. 使用 defer-recover 机制，放心大胆地关闭 channel 或者向 channel 发送数据。即使发生了 panic，有 defer-recover 在兜底。
+2. 使用 sync.Once 来保证只关闭一次。
+
+那么到底如何优雅关闭channel ？根据 sender 和 receiver 的个数，分下面几种情况：
+
+1. 一个 sender，一个 receiver
+2. 一个 sender， M 个 receiver
+3. N 个 sender，一个 reciver
+4. N 个 sender， M 个 receiver
+
+对于1、2 种情况，直接从 sender 端关闭即可，重点要关注的都是第3、4种情况。
+
+#### *N 个 sender，一个 reciver*
+
+在这种情况下，优雅关闭 channel 的方法是：the only receiver says “please stop sending more” by closing an additional signal channel。即增加一个传递关闭信号的 channel，receiver 通过信号 channel 下达关闭数据 channel 指令。senders 监听到关闭信号后，停止发送数据。
+
+```go
+func main()  {
+	rand.Seed(time.Now().Unix())
+
+	const NumSenders = 1000
+	const max = 1000
+
+	dataChan := make(chan int, 100)
+	stopChan := make(chan struct{})
+
+	//senders
+	for i := 0; i < NumSenders; i++ {
+		go func() {
+			for {
+				select {
+				case  <-stopChan:
+					return
+				case dataChan <- rand.Int():
+				}
+			}
+		}()
+	}
+
+	//receiver
+	go func() {
+		for val := range dataChan {
+			if val == max - 1 {
+				close(stopChan)
+				return
+			}
+		}
+	}()
+
+	select {
+	
+	}
+}
+
+```
+
+这里的 stopCh 就是信号 channel，它本身只有一个 sender，因此可以直接关闭它。senders 收到了关闭信号后，select 分支 “case <- stopCh” 被选中，退出函数，不再发送数据。需要说明的是，上面的代码并没有明确关闭 dataCh。在 Go 语言中，对于一个 channel，如果最终没有任何 goroutine 引用它，不管 channel 有没有被关闭，最终都会被 gc 回收。所以，在这种情形下，所谓的优雅地关闭 channel 就是不关闭 channel，让 gc 代劳。
+
+#### *N 个 sender，M个 reciver*
+
+在这种情况下，优雅关闭 channel 的方法是：any one of them says “let’s end the game” by notifying a moderator to close an additional signal channel。
+
+
+
+
+
+
+
+
+
+### channel的应用
+
+Channel 和 goroutine 的结合是 Go 并发编程的大杀器。而 channel 的实际应用也经常让人眼前一亮，通过与 select，cancel，timer 等结合，它能实现各种各样的功能。接下来，我们就要梳理一下 channel 的应用。
+
+#### *停止信号*
+
+经常是关闭某个 channel 或者向 channel 发送一个元素，使得接收 channel 的那一方获知道此信息，进而做一些其他的操作。
+
+#### *任务定时*
+
+如配合timer，设置任务的timeout
+
+```go
+select {
+	case <-time.After(100 * time.Millisecond):
+	case <-s.stopc:
+		return false
+}
+```
+
+如执行某个定时任务
+
+```go
+func task() {
+	ticker := time.Tick(1 * time.Second)
+	for {
+		select {
+		case <- ticker:
+			// 执行定时任务
+			fmt.Println("执行 1s 定时任务")
+		}
+	}
+}
+```
+
+#### *解耦生产方和消费方*
+
+服务启动时，启动 n 个 worker，作为工作协程池，这些协程工作在一个 `for {}` 无限循环里，从某个 channel 消费工作任务并执行：
+
+```go
+func main() {
+	taskCh := make(chan int, 100)
+	go worker(taskCh)
+
+    // 塞任务
+	for i := 0; i < 10; i++ {
+		taskCh <- i
+	}
+
+    // 等待 1 小时 
+	select {
+	case <-time.After(time.Hour):
+	}
+}
+
+func worker(taskCh <-chan int) {
+	const N = 5
+	// 启动 5 个工作协程
+	for i := 0; i < N; i++ {
+		go func(id int) {
+			for {
+				task := <- taskCh
+				fmt.Printf("finish task: %d by worker %d\n", task, id)
+				time.Sleep(time.Second)
+			}
+		}(i)
+	}
+}
+```
+
+#### *控制并发数*
+
+有时需要定时执行几百个任务，例如每天定时按城市来执行一些离线计算的任务。但是并发数又不能太高，因为任务执行过程依赖第三方的一些资源，对请求的速率有限制。这时就可以通过 channel 来控制并发数。
+
+```golang
+var limit = make(chan int, 3)
+
+func main() {
+    // …………
+    for _, w := range work {
+        go func() {
+            limit <- 1 //试图占坑
+            w() //占到坑位 执行w
+            <-limit //执行完成 归还坑位
+        }()
+    }
+    // …………
+}
+```
+
+构建一个缓冲型的 channel，容量为 3。接着遍历任务列表，每个任务启动一个 goroutine 去完成。真正执行任务，访问第三方的动作在 w() 中完成，在执行 w() 之前，先要从 limit 中拿“许可证”，拿到许可证之后，才能执行 w()，并且在执行完任务，要将“许可证”归还。这样就可以控制同时运行的 goroutine 数。

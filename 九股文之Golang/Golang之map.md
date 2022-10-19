@@ -792,3 +792,34 @@ next:
 
 ```
 
+### map的key
+
+只要是**可以比较的类型**，都可以作为map的key。除开 slice，map，functions 这几种类型，其他类型都是 OK 的。
+
+- 不能做key的类型：func、slice、map
+- 可以做key的类型：bool、int、string、chan、interface、struct、数组（这些类型的共同特征是支持 `==` 和 `!=` 操作符）
+
+### map可以边遍历边删除吗
+
+如果在同一个协程内边遍历边删除，并不会检测到同时读写，理论上是可以这样做的，但是遍历结果可能不会是相同的了，有可能遍历结果中包含了删除的key，也可能不包含，这取决于key的删除时间是在遍历到key所在的bucket之前还是之后。
+
+### 可以对map的元素取地址吗
+
+不能对map的元素进行取地址的操作，如下代码会编译报错。
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	m := make(map[string]int)
+	fmt.Println(&m["qcrao"])
+}
+```
+
+可以通过unsafe.Pointer等获取到key或者value的地址，但一旦map发生扩容，key与value的地址就会改变，之前保存的地址也就失效了。
+
+### 如何比较map是否相等
+
+不能直接使用 map1 == map2 这种情况会直接报错。只能遍历每一个key，比较每个元素是否深度相等。

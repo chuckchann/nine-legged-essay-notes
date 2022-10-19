@@ -28,6 +28,19 @@ OAuth2.0协议是一个开放标准，允许用户授权第三方程序访问他
 
 ![ZLIc-BdWcu_ixroOT0sBEtk0UwpTewqS6ujxbC2QOpbKIVp_DzleM_C9I-9GPDDh](image/ZLIc-BdWcu_ixroOT0sBEtk0UwpTewqS6ujxbC2QOpbKIVp_DzleM_C9I-9GPDDh.png)
 
+由于 access_token 有效期较短，当 access_token 过期后，可以使用 refresh_token 重新获取 access_token , 获取的结果有以下两种：
+
+1. 若 access_token 已超时，那么通过refresh_token可以获取一个新的access_token，这个access_token有新的超时时间。
+2. 若 access_token 未超时，那么通过refresh_token不会改变access_token，但超时时间会刷新，相当于续期access_token。
+
+## access_token的校验
+
+OAuth2.0的核心是颁发 access_token ， 而 OAuth 2.0 规范并没有约束 access_token 内容的生成规则，只要符合唯一性、不连续性、不可猜性就够了。目前主流的 access_token 都是基于JWT令牌来做的。
+
+
+
+
+
 ## 扫码登录
 
 扫码登录当中涉及到的三种角色：`PC端`、`手机端`、`服务端`
