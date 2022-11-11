@@ -349,7 +349,7 @@ func (c *timerCtx) cancel(removeFromParent bool, err error) {
 
 ### 总结
 
-各种类型的ctx并没有显式地实现接口的各个方法，而是只实现与自己相关的方法。比如，valueCtx只实现了Value方法（这也是它的核心功能），其他的与它本身功能无关的取消类的方法比如（Deadline方法）由它的父ctx实现，这样的设计使得每种类型的ctx只需要关注自己的功能，而无需实现与它功能无关的方法。假设valueCtx也显式地实现Done/Deadline，那么需要递归或者循坏去获取到它的父辈ctx中的cancelCtx或者timerCtx，代码可能如下所示：
+各个类型的ctx都遵循了**接口隔离原则**这种设计模式，即各种类型的ctx并没有显式地实现接口的各个方法，而是只实现与自己相关的方法。比如，valueCtx只实现了Value方法（这也是它的核心功能），其他的与它本身功能无关的取消类的方法比如（Deadline方法）由它的父ctx实现，这样的设计使得每种类型的ctx只需要关注自己的功能，而无需实现与它功能无关的方法。假设valueCtx也显式地实现Done/Deadline，那么需要递归或者循坏去获取到它的父辈ctx中的cancelCtx或者timerCtx，代码可能如下所示：
 
 ```go
 func (c *valueCtx) Done() <-chan struct{} {
@@ -362,5 +362,5 @@ func (c *valueCtx) Done() <-chan struct{} {
 }
 ```
 
-这无疑增加了代码的冗余度及让代码的可读性变差。而context包中这种隐式实现的方法让代码变得边界分明，冗余度低，也符合开放原则，在日常的编码中我们可以借鉴。
+这无疑增加了代码的冗余度及让代码的可读性变差。而context包中这种隐式实现的方法让代码变得边界分明，冗余度低，也符合接口个隔离原则，在日常的编码中我们可以借鉴。
 

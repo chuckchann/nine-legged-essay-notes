@@ -15,6 +15,12 @@
 2. 每个Consumer Group拥有一个公共且唯一的Group ID
 3. Consumer Group 在消费 Topic 的时候，Topic 的每个 Partition 只能分配给组内的某个 Consumer，只要被任何 Consumer 消费一次, 那么这条数据就可以认为被当前 Consumer Group 消费成功
 
+## 分区与消费者的数量关系
+
+- 分区数量等于消费者数量：最理想，每个消费者都能负责一个分区。
+- 分区数量小于消费者数量：多出的消费者数量会空跑，浪费了消费者，但任然能满足消费需求。
+- 分区数量大于消费者数量：一个分区不能同时被两个消费者消费，kafka在它设计的时候就是要保证分区下的消息顺序，那么要做到这一点就首先要保证消息是由消费者主动拉取的（pull），其次还要保证一个分区只能由一个消费者负责。倘若，两个消费者负责同一个分区，那么就意味着两个消费者同时读取分区的消息，由于消费者自己可以控制读取消息的offset，就有可能C1才读到2，而C1读到1，C1还没处理完，C2已经读到3了，则会造成很多浪费，因为这就相当于多线程读取同一个消息，会造成消息处理的重复，且不能保证消息的顺序，这就跟主动推送（push）无异。
+
 ## 分区的分配策略
 
 我们知道一个 Consumer Group 中有多个 Consumer，一个 Topic 也有多个 Partition，所以必然会涉及到 Partition 的分配问题: 确定哪个 Partition 由哪个 Consumer 来消费的问题。**Kafka 客户端提供了3 种分区分配策略：RangeAssignor、RoundRobinAssignor 和 StickyAssignor**
