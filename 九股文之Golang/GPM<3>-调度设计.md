@@ -10,7 +10,7 @@
 
 Go调度器的是由GPM构成的。
 
-![5222b5764897654fbf27748150333658.png](image/5222b5764897654fbf27748150333658.png)
+<img src="image/5222b5764897654fbf27748150333658.png" alt="5222b5764897654fbf27748150333658.png" style="zoom:33%;" />
 
 #### 调度器初期设计
 
@@ -22,13 +22,13 @@ Go调度器的是由GPM构成的。
 
 3.M需要经常互相传递可运行的 G，引入了大量的延迟；
 
-![ecf0f428060329355a09d01e8f9423a9.png](image/ecf0f428060329355a09d01e8f9423a9.png)
+<img src="image/ecf0f428060329355a09d01e8f9423a9.png" alt="ecf0f428060329355a09d01e8f9423a9.png" style="zoom:33%;" />
 
 #### 调度器进阶设计
 
 基于旧的调度器的弊端，Go设计了一个全新的调度器。再新的调度器中，加入了P。M是G运行的实体，P负责把G分配到M上进行执行，M才是真真正正的“干活者”。
 
-![f83f3f0468eed94486dd4891fe616aa4.png](image/f83f3f0468eed94486dd4891fe616aa4.png)
+<img src="image/f83f3f0468eed94486dd4891fe616aa4.png" alt="f83f3f0468eed94486dd4891fe616aa4.png" style="zoom:33%;" />
 
 1.全局队列：存放等待执行的G。
 
@@ -42,7 +42,7 @@ G0：每启动一个M，都会创建一个G0，G0不承载任何可执行函数�
 
 #### go func\(\)调度流程
 
-![b3283ed2466ef42d5467295bb3e1c44a.png](image/b3283ed2466ef42d5467295bb3e1c44a.png)
+<img src="image/b3283ed2466ef42d5467295bb3e1c44a.png" alt="b3283ed2466ef42d5467295bb3e1c44a.png" style="zoom:33%;" />
 
 #### 调度器的核心策略
 
