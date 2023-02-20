@@ -1,4 +1,4 @@
-# Golang之context
+# Golang之context源码分析
 
 ### Context是什么
 
@@ -65,7 +65,7 @@ func (*emptyCtx) Value(key interface{}) interface{} {
 }
 ```
 
-context.Background\(\) 与 context.TODO\(\) 返回的数据结构都是一个emptyCtx类型的常量，在多数情况下，如果当前函数没有上下文作为入参，我们都会使用 context.Backgroundc\(\)或者context.TODO\(\)作为起始的上下文向下传递。
+context.Background\(\) 与 context.TODO\(\) 返回的数据结构都是一个emptyCtx类型的常量，在多数情况下，如果当前函数没有上下文作为入参，我们都会使用 context.Background\(\)或者context.TODO\(\)作为起始的上下文向下传递。
 
 ##### valueCtx
 
@@ -199,7 +199,7 @@ func (c *cancelCtx) cancel(removeFromParent bool, err error) {
 
 最后一步是context.removeChild，目的是将当前ctx节点从父节点上移除。
 
-```
+```go
 func removeChild(parent Context, child canceler) {
 	p, ok := parentCancelCtx(parent) //找到父辈中的cancelCtx
 	if !ok {       //如果他的父辈中没有cancelCtx 那么后续的操作也没有必要了
@@ -255,7 +255,7 @@ func propagateCancel(parent Context, child canceler) {
   if p, ok := parentCancelCtx(parent); ok {  
 		p.mu.Lock()
 		if p.err != nil {
-			//父ctx已经被canceled 那他自己也要直接被cancel
+			//再次判断 父ctx已经被canceled 那他自己也要直接被cancel
 			child.cancel(false, p.err)      
 		} else {
 			if p.children == nil {
@@ -362,5 +362,5 @@ func (c *valueCtx) Done() <-chan struct{} {
 }
 ```
 
-这无疑增加了代码的冗余度及让代码的可读性变差。而context包中这种隐式实现的方法让代码变得边界分明，冗余度低，也符合接口个隔离原则，在日常的编码中我们可以借鉴。
+这无疑增加了代码的冗余度及让代码的可读性变差。而context包中这种隐式实现的方法让代码变得边界分明，冗余度低，也符合接口隔离原则，在日常的编码中我们可以借鉴。
 

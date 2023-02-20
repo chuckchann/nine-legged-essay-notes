@@ -1,8 +1,8 @@
-# Golang之channel
+# Golang之channel源码分析
 
 ### channel
 
-channel是支撑Go语言高性能并发编程模型的重要结构，channel是一个用于同步和通信的有锁队列，使用互斥锁解决程序中可能存在的线程竞争问题。以下内容基于：
+channel是支撑Go语言高性能并发编程模型的重要结构，channel是一个用于同步和通信的有锁环形队列，使用互斥锁解决程序中可能存在的线程竞争问题。以下内容基于：
 
 ```shell
 go version go1.16.2 darwin/amd64
@@ -641,3 +641,6 @@ func main() {
 ```
 
 构建一个缓冲型的 channel，容量为 3。接着遍历任务列表，每个任务启动一个 goroutine 去完成。真正执行任务，访问第三方的动作在 w() 中完成，在执行 w() 之前，先要从 limit 中拿“许可证”，拿到许可证之后，才能执行 w()，并且在执行完任务，要将“许可证”归还。这样就可以控制同时运行的 goroutine 数。
+
+### nil channel 与 closed channel
+

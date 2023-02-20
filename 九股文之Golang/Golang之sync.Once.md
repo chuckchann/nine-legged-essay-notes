@@ -1,4 +1,4 @@
-# Golang之sync.Once
+# Golang之sync.Once源码分析
 
 ### sync.Once简介
 
