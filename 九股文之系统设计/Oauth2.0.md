@@ -26,7 +26,7 @@ OAuth2.0协议是一个开放标准，允许用户授权第三方程序访问他
 2. 通过code参数加上AppID与AppSecret，通过API获取access_token
 3. 通过access_token进行接口调用，获取用户基本数据资源或者帮助用户实现基本操作
 
-![ZLIc-BdWcu_ixroOT0sBEtk0UwpTewqS6ujxbC2QOpbKIVp_DzleM_C9I-9GPDDh](image/ZLIc-BdWcu_ixroOT0sBEtk0UwpTewqS6ujxbC2QOpbKIVp_DzleM_C9I-9GPDDh.png)
+![Xnip2023-03-02_10-09-35](image/Xnip2023-03-02_10-09-35.jpg)
 
 由于 access_token 有效期较短，当 access_token 过期后，可以使用 refresh_token 重新获取 access_token , 获取的结果有以下两种：
 
@@ -35,11 +35,7 @@ OAuth2.0协议是一个开放标准，允许用户授权第三方程序访问他
 
 ## access_token的校验
 
-OAuth2.0的核心是颁发 access_token ， 而 OAuth 2.0 规范并没有约束 access_token 内容的生成规则，只要符合唯一性、不连续性、不可猜性就够了。目前主流的 access_token 都是基于JWT令牌来做的。
-
-
-
-
+OAuth2.0的核心是颁发 access_token ，而 OAuth 2.0 规范并没有约束 access_token 内容的生成规则，只要符合唯一性、不连续性、不可猜性就够了。目前主流的 access_token 都是基于JWT令牌来做的。
 
 ## 扫码登录
 

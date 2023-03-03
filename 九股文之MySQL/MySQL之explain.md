@@ -29,7 +29,7 @@ type表示SQL语句对表的访问方式（MySQL在表中找到所需行的方�
 
 2. <u>const</u>: 针对主键或唯一索引的等值查询扫描, 最多只返回一行数据. const 查询速度非常快, 因为它仅仅读取一次即可
 
-3. <u>eq_ref</u>: 通常出现在连表join查询中，连接的字段为主键或者唯一索引，表示对前表的每一个结果，都对应后表的唯一一条记录。并且查询的比较是=操作，查询效率比较高，如：SELECT * FROM ref_table,other_table WHERE ref_table.key_column=other_table.column
+3. <u>eq_ref</u>: 通常出现在连表join查询中，连接的字段为主键或者唯一索引，表示对前表的每一个结果，都对应后表的唯一一条记录。并且查询的比较是=操作，查询效率比较高，如：SELECT * FROM ref_table,other_table WHERE  ref_table.key_column=other_table.column
 
 4. <u>ref</u>: ref有三种情况：
    - 单表根据索引（非主键、非唯一索引），匹配到多行，如：`SELECT * FROM ref_table WHERE key_column=expr;`

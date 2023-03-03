@@ -40,7 +40,7 @@ Kafka 中的选举大致分为三大类: 控制器的选举, Leader 的选举, �
 
  副本机制简单来说就是备份机制，就是在分布式集群中保存着相同的数据备份。那么副本机制的好处就是提供数据冗余,  副本机制是kafka确保系统高可用和高持久的重要基石。 为了保证高可用，kafka 的分区是多副本的，如果其中一个副本丢失了，那么还可以从其他副本中获取分区数据(要求对应副本的数据必须是完整的)。这是 Kafka 数据一致性的基础。
 
- Kafka 使用 Zookeeper 来维护集群 Brokers 的信息，每个 Broker 都有一个唯一的标识**`broker.id`**，用于标识自己在集群中的身份。Brokers 会通过 Zookeeper 选举出一个叫**`Controller Broker`**节点，它除了具备其它Brokers的功能外，还**负责管理主题分区及其副本的状态**。 Kafka 使用 Zookeeper 来维护集群 Brokers 的信息，每个 Broker 都有一个唯一的标识**`broker.id`**，用于标识自己在集群中的身份。Brokers 会通过 Zookeeper 选举出一个叫**`Controller Broker`**节点，它除了具备其它Brokers的功能外，还**负责管理主题分区及其副本的状态**。
+ Kafka 使用 Zookeeper 来维护集群 Brokers 的信息，每个 Broker 都有一个唯一的标识**`broker.id`**，用于标识自己在集群中的身份。Brokers 会通过 Zookeeper 选举出一个叫**`Controller Broker`**节点，它除了具备其它Brokers的功能外，还**负责管理主题分区及其副本的状态**。
 
  在 Kafka 中 Topic 被分为多个分区（Partition），分区是 Kafka ***最基本的存储单位***。在创建主题的时候可使用**`replication-factor`**参数指定分区的副本个数。分区副本总会有一个 Leader 副本，所有的消息都直接发送给Leader 副本，其它副本都需要通过复制 Leader 中的数据来保证数据一致。当 Leader 副本不可用时，其中一个 Follower 将会被选举并成为新的 Leader。
 
